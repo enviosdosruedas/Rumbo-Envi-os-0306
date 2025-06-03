@@ -60,10 +60,22 @@ export default async function MapaRutasPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
-          <FiltrosMapaRutas />
+          <FiltrosMapaRutas
+            onFiltrosChange={(filtros) => {
+              // This will be handled by making FiltrosMapaRutas a client component
+            }}
+          />
         </div>
         <div className="lg:col-span-3">
-          <MapaRutas repartos={repartos || []} empresas={empresas || []} />
+          <MapaRutas
+            repartos={repartos || []}
+            empresas={empresas || []}
+            filtros={{
+              estado: [],
+              fecha: null,
+              repartidor: null,
+            }}
+          />
         </div>
       </div>
     </div>

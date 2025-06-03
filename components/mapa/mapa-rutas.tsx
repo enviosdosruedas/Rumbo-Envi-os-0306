@@ -21,7 +21,11 @@ declare global {
   }
 }
 
-export function MapaRutas({ repartos, empresas, filtros }: MapaRutasProps) {
+export function MapaRutas({
+  repartos = [],
+  empresas = [],
+  filtros = { estado: [], fecha: null, repartidor: null },
+}: MapaRutasProps) {
   const [repartoSeleccionado, setRepartoSeleccionado] = useState<string | null>(null)
   const [vistaActual, setVistaActual] = useState<"mapa" | "lista">("mapa")
   const [mapsLoaded, setMapsLoaded] = useState(false)
@@ -83,27 +87,33 @@ export function MapaRutas({ repartos, empresas, filtros }: MapaRutasProps) {
 
     // Limpiar marcadores anteriores
     markersRef.current.forEach((marker) => {
-      marker.setMap(null)
+      if (marker && marker.setMap) {
+        marker.setMap(null)
+      }
     })
     markersRef.current = []
 
     // Limpiar infowindows anteriores
     infoWindowsRef.current.forEach((infoWindow) => {
-      infoWindow.close()
+      if (infoWindow && infoWindow.close) {
+        infoWindow.close()
+      }
     })
     infoWindowsRef.current = []
 
     // Filtrar repartos según los filtros aplicados
     const repartosFiltrados = repartos.filter((reparto) => {
+      if (!reparto) return false
+
       let cumpleFiltros = true
 
       // Filtro por estado
-      if (filtros.estado.length > 0) {
+      if (filtros?.estado && filtros.estado.length > 0) {
         cumpleFiltros = cumpleFiltros && filtros.estado.includes(reparto.estado)
       }
 
       // Filtro por fecha
-      if (filtros.fecha) {
+      if (filtros?.fecha) {
         const fechaFiltro = new Date(filtros.fecha)
         const fechaReparto = new Date(reparto.fecha)
         cumpleFiltros =
@@ -114,7 +124,7 @@ export function MapaRutas({ repartos, empresas, filtros }: MapaRutasProps) {
       }
 
       // Filtro por repartidor
-      if (filtros.repartidor) {
+      if (filtros?.repartidor) {
         cumpleFiltros = cumpleFiltros && reparto.repartidor_id === filtros.repartidor
       }
 

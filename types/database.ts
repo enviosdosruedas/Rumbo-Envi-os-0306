@@ -218,6 +218,17 @@ export interface Database {
           es_parada_origen: boolean | null
           distancia_km: number | null
           tiempo_estimado_minutos: number | null
+          // Nuevos campos agregados
+          coordenadas_origen: string | null
+          coordenadas_destino: string | null
+          telefono_origen: string | null
+          telefono_destino: string | null
+          nombre_destinatario: string | null
+          email_destinatario: string | null
+          fecha_programada: string | null
+          hora_programada: string | null
+          propina_requerida: boolean | null
+          notas: string | null
           created_at: string
           updated_at: string
         }
@@ -247,6 +258,17 @@ export interface Database {
           es_parada_origen?: boolean | null
           distancia_km?: number | null
           tiempo_estimado_minutos?: number | null
+          // Nuevos campos agregados
+          coordenadas_origen?: string | null
+          coordenadas_destino?: string | null
+          telefono_origen?: string | null
+          telefono_destino?: string | null
+          nombre_destinatario?: string | null
+          email_destinatario?: string | null
+          fecha_programada?: string | null
+          hora_programada?: string | null
+          propina_requerida?: boolean | null
+          notas?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -276,6 +298,17 @@ export interface Database {
           es_parada_origen?: boolean | null
           distancia_km?: number | null
           tiempo_estimado_minutos?: number | null
+          // Nuevos campos agregados
+          coordenadas_origen?: string | null
+          coordenadas_destino?: string | null
+          telefono_origen?: string | null
+          telefono_destino?: string | null
+          nombre_destinatario?: string | null
+          email_destinatario?: string | null
+          fecha_programada?: string | null
+          hora_programada?: string | null
+          propina_requerida?: boolean | null
+          notas?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -357,6 +390,12 @@ export interface Database {
           es_configuracion_principal: boolean | null
           moneda: string | null
           idioma: string | null
+          // Nuevos campos para punto de recogida
+          nombre_punto_recogida: string | null
+          telefono_punto_recogida: string | null
+          direccion_punto_recogida: string | null
+          latitud_punto_recogida: number | null
+          longitud_punto_recogida: number | null
           created_at: string
           updated_at: string
         }
@@ -377,6 +416,12 @@ export interface Database {
           es_configuracion_principal?: boolean | null
           moneda?: string | null
           idioma?: string | null
+          // Nuevos campos para punto de recogida
+          nombre_punto_recogida?: string | null
+          telefono_punto_recogida?: string | null
+          direccion_punto_recogida?: string | null
+          latitud_punto_recogida?: number | null
+          longitud_punto_recogida?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -397,6 +442,12 @@ export interface Database {
           es_configuracion_principal?: boolean | null
           moneda?: string | null
           idioma?: string | null
+          // Nuevos campos para punto de recogida
+          nombre_punto_recogida?: string | null
+          telefono_punto_recogida?: string | null
+          direccion_punto_recogida?: string | null
+          latitud_punto_recogida?: number | null
+          longitud_punto_recogida?: number | null
           created_at?: string
           updated_at?: string
         }

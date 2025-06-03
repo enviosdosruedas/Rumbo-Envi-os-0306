@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, Package, User, Truck, Plus, List, Map } from "lucide-react"
+import { LayoutDashboard, Package, User, Truck, Plus, List, Map, Send } from "lucide-react"
 import type { Repartidor } from "@/types"
 
 interface SidebarProps {
@@ -31,6 +31,11 @@ const navigation = [
     name: "Reparto por Lotes",
     href: "/repartos/lote",
     icon: List,
+  },
+  {
+    name: "Generar Envíos",
+    href: "/envios/generar",
+    icon: Send,
   },
   {
     name: "Mapa de Rutas",

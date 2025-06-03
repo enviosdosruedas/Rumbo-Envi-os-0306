@@ -6,36 +6,42 @@ export async function middleware(request: NextRequest) {
     request,
   })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+            supabaseResponse = NextResponse.next({
+              request,
+            })
+            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+          },
         },
       },
-    },
-  )
+    )
 
-  const pathname = request.nextUrl.pathname
+    const pathname = request.nextUrl.pathname
 
-  // No procesar la página raíz o la página de bienvenida en el middleware
-  if (pathname === "/" || pathname === "/welcome") {
-    return supabaseResponse
-  }
+    // No procesar la página raíz o la página de bienvenida en el middleware
+    if (pathname === "/" || pathname === "/welcome") {
+      return supabaseResponse
+    }
 
-  // Verificar si el usuario está autenticado solo para rutas que no sean la raíz o welcome
-  try {
+    // Verificar si el usuario está autenticado solo para rutas que no sean la raíz o welcome
     // Primero verificamos si hay una sesión activa
-    const { data: sessionData } = await supabase.auth.getSession()
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+
+    if (sessionError) {
+      console.error("Session error in middleware:", sessionError.message)
+      // Continue to next middleware/route handler
+      return supabaseResponse
+    }
 
     if (!sessionData.session) {
       // Si no hay sesión y está intentando acceder a rutas protegidas
@@ -43,7 +49,8 @@ export async function middleware(request: NextRequest) {
         pathname.startsWith("/panel") ||
         pathname.startsWith("/repartos") ||
         pathname.startsWith("/mapa-rutas") ||
-        pathname.startsWith("/perfil")
+        pathname.startsWith("/perfil") ||
+        pathname.startsWith("/envios")
 
       if (isProtectedRoute) {
         const redirectUrl = new URL("/login", request.url)
@@ -54,19 +61,23 @@ export async function middleware(request: NextRequest) {
     }
 
     // Si hay sesión, verificamos el usuario
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+
+    if (userError) {
+      console.error("User error in middleware:", userError.message)
+      return supabaseResponse
+    }
 
     const isAuthPage = pathname.startsWith("/login")
     const isProtectedRoute =
       pathname.startsWith("/panel") ||
       pathname.startsWith("/repartos") ||
       pathname.startsWith("/mapa-rutas") ||
-      pathname.startsWith("/perfil")
+      pathname.startsWith("/perfil") ||
+      pathname.startsWith("/envios")
 
     // Si está autenticado y trata de acceder al login
-    if (user && isAuthPage) {
+    if (userData.user && isAuthPage) {
       const redirectUrl = new URL("/panel", request.url)
       return NextResponse.redirect(redirectUrl)
     }

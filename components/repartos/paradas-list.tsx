@@ -15,11 +15,10 @@ interface ParadasListProps {
 export function ParadasList({ paradas, repartoId }: ParadasListProps) {
   const [updatingParada, setUpdatingParada] = useState<string | null>(null)
 
-  // Calcular estadísticas de forma simple
+  // Simple calculations without memoization
   const completadas = paradas.filter((p) => p.completada).length
-  const pendientes = paradas.length - completadas
-  const porcentaje = paradas.length > 0 ? Math.round((completadas / paradas.length) * 100) : 0
   const total = paradas.length
+  const porcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0
 
   const handleMarcarCompletada = async (paradaId: string) => {
     setUpdatingParada(paradaId)
@@ -37,8 +36,6 @@ export function ParadasList({ paradas, repartoId }: ParadasListProps) {
         .eq("id", paradaId)
 
       if (error) throw error
-
-      // Recargar la página para mostrar los cambios
       window.location.reload()
     } catch (error) {
       console.error("Error al marcar parada como completada:", error)
@@ -48,7 +45,7 @@ export function ParadasList({ paradas, repartoId }: ParadasListProps) {
     }
   }
 
-  const abrirNavegacion = (latitud: number, longitud: number) => {
+  const handleAbrirNavegacion = (latitud: number, longitud: number) => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${latitud},${longitud}`
     window.open(url, "_blank")
   }
@@ -59,7 +56,7 @@ export function ParadasList({ paradas, repartoId }: ParadasListProps) {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center">
             <MapPin className="mr-2 h-5 w-5" />
-            Paradas del Reparto ({paradas.length})
+            Paradas del Reparto ({total})
           </div>
           <div className="text-sm text-gray-600">
             {completadas} de {total} completadas ({porcentaje}%)
@@ -68,20 +65,18 @@ export function ParadasList({ paradas, repartoId }: ParadasListProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {paradas.length === 0 ? (
+          {total === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <MapPin className="mx-auto h-12 w-12 text-gray-300 mb-4" />
               <p>No hay paradas programadas</p>
             </div>
           ) : (
             <>
-              {/* Barra de progreso */}
               <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
                 <div className="bg-green-600 h-2 rounded-full transition-all" style={{ width: `${porcentaje}%` }} />
               </div>
 
-              {/* Lista de paradas */}
-              {paradas.map((parada, index) => (
+              {paradas.map((parada) => (
                 <div
                   key={parada.id}
                   className={`p-4 border rounded-lg transition-all ${
@@ -149,7 +144,7 @@ export function ParadasList({ paradas, repartoId }: ParadasListProps) {
                           <Button
                             size="sm"
                             onClick={() =>
-                              abrirNavegacion(parada.envios.clientes.latitud, parada.envios.clientes.longitud)
+                              handleAbrirNavegacion(parada.envios.clientes.latitud, parada.envios.clientes.longitud)
                             }
                             variant="outline"
                           >

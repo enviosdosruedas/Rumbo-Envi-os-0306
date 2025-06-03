@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,56 +35,48 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
   const [resultado, setResultado] = useState<any>(null)
 
   const router = useRouter()
-  const supabase = createClient()
 
-  // Obtener clientes disponibles de forma simple
+  // Simple calculations without memoization to avoid infinite loops
   const clientesDisponibles = empresaSeleccionada ? clientesPorEmpresa[empresaSeleccionada] || [] : []
-
-  // Calcular estadísticas de forma simple
   const distanciaEstimada = clientesSeleccionados.length * 2.5
   const tiempoEstimado = clientesSeleccionados.length * 15
   const totalClientes = clientesSeleccionados.length
   const porcentajeCompletado =
     clientesDisponibles.length > 0 ? Math.round((clientesSeleccionados.length / clientesDisponibles.length) * 100) : 0
-
   const empresaActual = empresas.find((e) => e.id === empresaSeleccionada)
 
-  const toggleClienteSeleccionado = (clienteId: string) => {
+  // Simple event handlers without useCallback
+  const handleToggleCliente = (clienteId: string) => {
     setClientesSeleccionados((prev) => {
       if (prev.includes(clienteId)) {
         return prev.filter((id) => id !== clienteId)
-      } else {
-        return [...prev, clienteId]
       }
+      return [...prev, clienteId]
     })
   }
 
-  const seleccionarTodosClientes = () => {
+  const handleSeleccionarTodos = () => {
     const todosIds = clientesDisponibles.map((c) => c.id)
-    if (clientesSeleccionados.length === todosIds.length) {
-      setClientesSeleccionados([])
-    } else {
-      setClientesSeleccionados(todosIds)
-    }
+    setClientesSeleccionados((prev) => {
+      return prev.length === todosIds.length ? [] : todosIds
+    })
   }
 
   const handleEmpresaChange = (value: string) => {
     setEmpresaSeleccionada(value)
-    setClientesSeleccionados([]) // Limpiar selección cuando cambia la empresa
+    setClientesSeleccionados([])
   }
 
-  const optimizarRuta = () => {
+  const handleOptimizarRuta = () => {
     setOptimizandoRuta(true)
-
-    // Simulación de optimización con un retraso
     setTimeout(() => {
       setClientesSeleccionados((prev) => {
-        const clientesOptimizados = [...prev]
-        for (let i = clientesOptimizados.length - 1; i > 0; i--) {
+        const optimizados = [...prev]
+        for (let i = optimizados.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1))
-          ;[clientesOptimizados[i], clientesOptimizados[j]] = [clientesOptimizados[j], clientesOptimizados[i]]
+          ;[optimizados[i], optimizados[j]] = [optimizados[j], optimizados[i]]
         }
-        return clientesOptimizados
+        return optimizados
       })
       setOptimizandoRuta(false)
     }, 1500)
@@ -107,17 +98,17 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
     setLoading(true)
 
     try {
-      // Obtener ID del repartidor actual
+      const supabase = createClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
+
       if (!user) throw new Error("Usuario no autenticado")
 
       const { data: repartidor } = await supabase.from("repartidores").select("id").eq("user_auth_id", user.id).single()
 
       if (!repartidor) throw new Error("Repartidor no encontrado")
 
-      // Llamar a la función de Supabase para generar reparto por lote
       const { data, error } = await supabase.rpc("generar_reparto_lote", {
         p_repartidor_id: repartidor.id,
         p_fecha: fecha.toISOString().split("T")[0],
@@ -130,7 +121,6 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
 
       setResultado(data)
 
-      // Esperar un momento y redirigir al detalle del reparto creado
       setTimeout(() => {
         if (data?.reparto?.id) {
           router.push(`/repartos/${data.reparto.id}`)
@@ -160,7 +150,6 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
 
         <TabsContent value="seleccion">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Formulario principal */}
             <div className="space-y-6">
               <Card>
                 <CardHeader>
@@ -223,7 +212,6 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
               </Card>
             </div>
 
-            {/* Lista de clientes */}
             <div>
               <Card>
                 <CardHeader>
@@ -233,7 +221,7 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
                       Clientes Disponibles
                     </div>
                     {empresaSeleccionada && clientesDisponibles.length > 0 && (
-                      <Button type="button" variant="outline" size="sm" onClick={seleccionarTodosClientes}>
+                      <Button type="button" variant="outline" size="sm" onClick={handleSeleccionarTodos}>
                         {clientesSeleccionados.length === clientesDisponibles.length
                           ? "Deseleccionar Todos"
                           : "Seleccionar Todos"}
@@ -262,7 +250,7 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
                               ? "bg-blue-50 border-blue-200"
                               : "hover:border-gray-300"
                           }`}
-                          onClick={() => toggleClienteSeleccionado(cliente.id)}
+                          onClick={() => handleToggleCliente(cliente.id)}
                         >
                           <div className="flex items-center space-x-3">
                             <Checkbox
@@ -294,7 +282,7 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={optimizarRuta}
+                        onClick={handleOptimizarRuta}
                         disabled={optimizandoRuta}
                       >
                         {optimizandoRuta ? (
@@ -330,7 +318,6 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Mapa de vista previa (simulado) */}
                   <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
                     <div className="text-center text-gray-500">
                       <MapPin className="mx-auto h-12 w-12 mb-4" />
@@ -339,11 +326,9 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
                     </div>
                   </div>
 
-                  {/* Lista de paradas */}
                   <div className="space-y-3">
                     <h4 className="font-medium text-gray-900">Secuencia de visitas:</h4>
 
-                    {/* Punto de origen */}
                     {empresaActual && (
                       <div className="flex items-center p-3 border rounded-lg bg-blue-50">
                         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white mr-3">
@@ -356,7 +341,6 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
                       </div>
                     )}
 
-                    {/* Clientes seleccionados */}
                     {clientesSeleccionados.map((clienteId, index) => {
                       const cliente = clientesDisponibles.find((c) => c.id === clienteId)
                       if (!cliente) return null
@@ -377,7 +361,6 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
                     })}
                   </div>
 
-                  {/* Estadísticas estimadas */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-600">Distancia estimada</p>
@@ -399,7 +382,6 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
         </TabsContent>
       </Tabs>
 
-      {/* Resultado */}
       {resultado && (
         <Alert className="bg-green-50 border-green-200">
           <AlertTitle className="text-green-800">¡Reparto creado con éxito!</AlertTitle>
@@ -410,7 +392,6 @@ export function RepartoPorLoteForm({ empresas, clientesPorEmpresa }: RepartoPorL
         </Alert>
       )}
 
-      {/* Botones de acción */}
       <div className="flex justify-end space-x-4">
         <Button type="button" variant="outline" onClick={() => router.back()}>
           Cancelar

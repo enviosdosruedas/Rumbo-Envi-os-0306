@@ -4,6 +4,9 @@ import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { WeatherWidget } from "@/components/dashboard/weather-widget"
 import { QuickActions } from "@/components/dashboard/quick-actions"
 
+// Force dynamic rendering to avoid static generation issues
+export const dynamic = "force-dynamic"
+
 export default async function DashboardPage() {
   const supabase = await createClient()
 

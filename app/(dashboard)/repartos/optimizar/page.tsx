@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { OptimizadorRuta } from "@/components/repartos/optimizador-ruta"
 
+// Force dynamic rendering to avoid static generation issues
+export const dynamic = "force-dynamic"
+
 export default async function OptimizarRutaPage() {
   const supabase = await createClient()
 

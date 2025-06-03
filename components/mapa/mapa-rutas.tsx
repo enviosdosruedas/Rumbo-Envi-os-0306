@@ -1,20 +1,405 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Navigation, Eye, RotateCcw } from "lucide-react"
-import Link from "next/link"
+import { MapPin, Loader2 } from "lucide-react"
 
 interface MapaRutasProps {
   repartos: any[]
   empresas: any[]
+  filtros: {
+    estado: string[]
+    fecha: string | null
+    repartidor: string | null
+  }
 }
 
-export function MapaRutas({ repartos, empresas }: MapaRutasProps) {
+declare global {
+  interface Window {
+    google: any
+  }
+}
+
+export function MapaRutas({ repartos, empresas, filtros }: MapaRutasProps) {
   const [repartoSeleccionado, setRepartoSeleccionado] = useState<string | null>(null)
   const [vistaActual, setVistaActual] = useState<"mapa" | "lista">("mapa")
+  const [mapsLoaded, setMapsLoaded] = useState(false)
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const markersRef = useRef<any[]>([])
+  const infoWindowsRef = useRef<any[]>([])
+
+  // Cargar Google Maps API
+  useEffect(() => {
+    if (typeof window !== "undefined" && !window.google) {
+      const script = document.createElement("script")
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places,marker&map_ids=DEMO_MAP_ID`
+      script.async = true
+      script.defer = true
+      script.onload = () => {
+        setMapsLoaded(true)
+      }
+      document.head.appendChild(script)
+    } else if (window.google) {
+      setMapsLoaded(true)
+    }
+  }, [])
+
+  // Inicializar mapa cuando se cargan las APIs
+  useEffect(() => {
+    if (mapsLoaded && mapRef.current) {
+      initializeMap()
+    }
+  }, [mapsLoaded])
+
+  // Actualizar marcadores cuando cambian los repartos o filtros
+  useEffect(() => {
+    if (mapsLoaded && mapInstanceRef.current) {
+      actualizarMarcadores()
+    }
+  }, [mapsLoaded, repartos, filtros])
+
+  const initializeMap = () => {
+    if (!mapRef.current || !window.google) return
+
+    // Crear mapa centrado en Mar del Plata, Argentina
+    const defaultCenter = { lat: -38.01088591264159, lng: -57.59909874310361 }
+
+    mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+      zoom: 12,
+      center: defaultCenter,
+      mapTypeControl: false,
+      streetViewControl: false,
+      mapId: "DEMO_MAP_ID", // Required for Advanced Markers
+    })
+
+    // Inicializar marcadores
+    actualizarMarcadores()
+  }
+
+  const actualizarMarcadores = () => {
+    if (!mapInstanceRef.current) return
+
+    // Limpiar marcadores anteriores
+    markersRef.current.forEach((marker) => {
+      marker.setMap(null)
+    })
+    markersRef.current = []
+
+    // Limpiar infowindows anteriores
+    infoWindowsRef.current.forEach((infoWindow) => {
+      infoWindow.close()
+    })
+    infoWindowsRef.current = []
+
+    // Filtrar repartos según los filtros aplicados
+    const repartosFiltrados = repartos.filter((reparto) => {
+      let cumpleFiltros = true
+
+      // Filtro por estado
+      if (filtros.estado.length > 0) {
+        cumpleFiltros = cumpleFiltros && filtros.estado.includes(reparto.estado)
+      }
+
+      // Filtro por fecha
+      if (filtros.fecha) {
+        const fechaFiltro = new Date(filtros.fecha)
+        const fechaReparto = new Date(reparto.fecha)
+        cumpleFiltros =
+          cumpleFiltros &&
+          fechaFiltro.getFullYear() === fechaReparto.getFullYear() &&
+          fechaFiltro.getMonth() === fechaReparto.getMonth() &&
+          fechaFiltro.getDate() === fechaReparto.getDate()
+      }
+
+      // Filtro por repartidor
+      if (filtros.repartidor) {
+        cumpleFiltros = cumpleFiltros && reparto.repartidor_id === filtros.repartidor
+      }
+
+      return cumpleFiltros
+    })
+
+    // Si no hay repartos filtrados, no hacer nada más
+    if (repartosFiltrados.length === 0) return
+
+    // Crear marcadores para cada reparto
+    const bounds = new window.google.maps.LatLngBounds()
+
+    // Primero, agregar marcadores para las empresas (centros de distribución)
+    const empresasMap = new Map()
+
+    repartosFiltrados.forEach((reparto) => {
+      if (reparto.empresas && reparto.empresas.latitud_empresa && reparto.empresas.longitud_empresa) {
+        const empresaId = reparto.empresa_id
+        if (!empresasMap.has(empresaId)) {
+          const lat = Number.parseFloat(reparto.empresas.latitud_empresa)
+          const lng = Number.parseFloat(reparto.empresas.longitud_empresa)
+
+          if (!isNaN(lat) && !isNaN(lng)) {
+            empresasMap.set(empresaId, {
+              id: empresaId,
+              nombre: reparto.empresas.nombre,
+              lat,
+              lng,
+            })
+            bounds.extend({ lat, lng })
+          }
+        }
+      }
+    })
+
+    // Crear marcadores para las empresas
+    empresasMap.forEach((empresa) => {
+      // Usar AdvancedMarkerElement si está disponible
+      if (window.google.maps.marker && window.google.maps.marker.AdvancedMarkerElement) {
+        const markerPosition = { lat: empresa.lat, lng: empresa.lng }
+
+        // Crear elemento para el contenido del marcador
+        const markerContent = document.createElement("div")
+        markerContent.className = "marker-content"
+        markerContent.innerHTML = `
+          <div style="
+            background-color: #10b981;
+            color: white;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border: 3px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+          ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"></path>
+              <path d="M3 9V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4"></path>
+            </svg>
+          </div>
+        `
+
+        // Crear marcador avanzado
+        const marker = new window.google.maps.marker.AdvancedMarkerElement({
+          map: mapInstanceRef.current,
+          position: markerPosition,
+          content: markerContent,
+          title: `Centro: ${empresa.nombre}`,
+        })
+
+        // Crear info window
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div class="p-2">
+              <h3 class="font-semibold">🏢 ${empresa.nombre}</h3>
+              <p class="text-sm text-gray-600">Centro de distribución</p>
+            </div>
+          `,
+        })
+
+        // Agregar evento click
+        marker.addListener("click", () => {
+          infoWindow.open(mapInstanceRef.current, marker)
+        })
+
+        // Guardar referencias
+        markersRef.current.push(marker)
+        infoWindowsRef.current.push(infoWindow)
+      } else {
+        // Fallback a marcador tradicional
+        const marker = new window.google.maps.Marker({
+          position: { lat: empresa.lat, lng: empresa.lng },
+          map: mapInstanceRef.current,
+          title: `Centro: ${empresa.nombre}`,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 18,
+            fillColor: "#10b981",
+            fillOpacity: 1,
+            strokeColor: "white",
+            strokeWeight: 3,
+          },
+        })
+
+        // Crear info window
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div class="p-2">
+              <h3 class="font-semibold">🏢 ${empresa.nombre}</h3>
+              <p class="text-sm text-gray-600">Centro de distribución</p>
+            </div>
+          `,
+        })
+
+        // Agregar evento click
+        marker.addListener("click", () => {
+          infoWindow.open(mapInstanceRef.current, marker)
+        })
+
+        // Guardar referencias
+        markersRef.current.push(marker)
+        infoWindowsRef.current.push(infoWindow)
+      }
+    })
+
+    // Luego, agregar marcadores para cada parada de cada reparto
+    repartosFiltrados.forEach((reparto) => {
+      if (reparto.paradas_reparto && reparto.paradas_reparto.length > 0) {
+        reparto.paradas_reparto.forEach((parada: any) => {
+          if (
+            parada.envios &&
+            parada.envios.clientes &&
+            parada.envios.clientes.latitud &&
+            parada.envios.clientes.longitud
+          ) {
+            const lat = Number.parseFloat(parada.envios.clientes.latitud)
+            const lng = Number.parseFloat(parada.envios.clientes.longitud)
+
+            if (!isNaN(lat) && !isNaN(lng)) {
+              bounds.extend({ lat, lng })
+
+              // Determinar color según estado
+              let color = "#3b82f6" // Azul por defecto (en progreso)
+              if (reparto.estado === "pendiente") {
+                color = "#eab308" // Amarillo
+              } else if (reparto.estado === "completado") {
+                color = "#10b981" // Verde
+              } else if (reparto.estado === "cancelado") {
+                color = "#ef4444" // Rojo
+              }
+
+              // Usar AdvancedMarkerElement si está disponible
+              if (window.google.maps.marker && window.google.maps.marker.AdvancedMarkerElement) {
+                const markerPosition = { lat, lng }
+
+                // Crear elemento para el contenido del marcador
+                const markerContent = document.createElement("div")
+                markerContent.className = "marker-content"
+                markerContent.innerHTML = `
+                  <div style="
+                    background-color: ${color};
+                    color: white;
+                    border-radius: 50%;
+                    width: 30px;
+                    height: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                    border: 2px solid white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                  ">
+                    ${parada.orden || "•"}
+                  </div>
+                `
+
+                // Crear marcador avanzado
+                const marker = new window.google.maps.marker.AdvancedMarkerElement({
+                  map: mapInstanceRef.current,
+                  position: markerPosition,
+                  content: markerContent,
+                  title: `${parada.envios.clientes.nombre} - ${parada.envios.direccion_destino}`,
+                })
+
+                // Crear info window
+                const infoWindow = new window.google.maps.InfoWindow({
+                  content: `
+                    <div class="p-2">
+                      <h3 class="font-semibold">${parada.envios.clientes.nombre}</h3>
+                      <p class="text-sm text-gray-600">${parada.envios.direccion_destino}</p>
+                      <p class="text-sm">Reparto #${reparto.id} - ${new Date(reparto.fecha).toLocaleDateString()}</p>
+                      <p class="text-sm">
+                        Estado: <span style="color:${color};font-weight:bold;">
+                          ${reparto.estado.toUpperCase()}
+                        </span>
+                      </p>
+                      ${
+                        reparto.repartidores
+                          ? `<p class="text-sm">Repartidor: ${reparto.repartidores.nombre} ${reparto.repartidores.apellido}</p>`
+                          : ""
+                      }
+                    </div>
+                  `,
+                })
+
+                // Agregar evento click
+                marker.addListener("click", () => {
+                  infoWindow.open(mapInstanceRef.current, marker)
+                })
+
+                // Guardar referencias
+                markersRef.current.push(marker)
+                infoWindowsRef.current.push(infoWindow)
+              } else {
+                // Fallback a marcador tradicional
+                const marker = new window.google.maps.Marker({
+                  position: { lat, lng },
+                  map: mapInstanceRef.current,
+                  title: `${parada.envios.clientes.nombre} - ${parada.envios.direccion_destino}`,
+                  label: parada.orden ? parada.orden.toString() : "",
+                  icon: {
+                    path: window.google.maps.SymbolPath.CIRCLE,
+                    scale: 15,
+                    fillColor: color,
+                    fillOpacity: 1,
+                    strokeColor: "white",
+                    strokeWeight: 2,
+                  },
+                })
+
+                // Crear info window
+                const infoWindow = new window.google.maps.InfoWindow({
+                  content: `
+                    <div class="p-2">
+                      <h3 class="font-semibold">${parada.envios.clientes.nombre}</h3>
+                      <p class="text-sm text-gray-600">${parada.envios.direccion_destino}</p>
+                      <p class="text-sm">Reparto #${reparto.id} - ${new Date(reparto.fecha).toLocaleDateString()}</p>
+                      <p class="text-sm">
+                        Estado: <span style="color:${color};font-weight:bold;">
+                          ${reparto.estado.toUpperCase()}
+                        </span>
+                      </p>
+                      ${
+                        reparto.repartidores
+                          ? `<p class="text-sm">Repartidor: ${reparto.repartidores.nombre} ${reparto.repartidores.apellido}</p>`
+                          : ""
+                      }
+                    </div>
+                  `,
+                })
+
+                // Agregar evento click
+                marker.addListener("click", () => {
+                  infoWindow.open(mapInstanceRef.current, marker)
+                })
+
+                // Guardar referencias
+                markersRef.current.push(marker)
+                infoWindowsRef.current.push(infoWindow)
+              }
+            }
+          }
+        })
+      }
+    })
+
+    // Ajustar zoom para mostrar todos los marcadores
+    if (markersRef.current.length > 0) {
+      mapInstanceRef.current.fitBounds(bounds)
+    }
+  }
+
+  const getColorByEstado = (estado: string) => {
+    const colors = {
+      pendiente: "#eab308",
+      en_progreso: "#3b82f6",
+      completado: "#10b981",
+      cancelado: "#ef4444",
+    } as const
+
+    return colors[estado as keyof typeof colors] || "#6b7280"
+  }
 
   const abrirEnGoogleMaps = (reparto: any) => {
     if (!reparto.paradas_reparto || reparto.paradas_reparto.length === 0) return
@@ -55,179 +440,27 @@ export function MapaRutas({ repartos, empresas }: MapaRutasProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Controles del mapa */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center">
-              <MapPin className="mr-2 h-5 w-5" />
-              Mapa de Rutas Activas
-            </CardTitle>
-            <div className="flex space-x-2">
-              <Button
-                variant={vistaActual === "mapa" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setVistaActual("mapa")}
-              >
-                Mapa
-              </Button>
-              <Button
-                variant={vistaActual === "lista" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setVistaActual("lista")}
-              >
-                Lista
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {vistaActual === "mapa" ? (
-            <div className="space-y-4">
-              {/* Mapa simulado */}
-              <div className="w-full h-96 bg-gray-100 rounded-lg flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-green-50"></div>
-                <div className="relative z-10 text-center">
-                  <MapPin className="mx-auto h-16 w-16 text-blue-600 mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Mapa Interactivo</h3>
-                  <p className="text-gray-600 mb-4">
-                    {repartos.length} repartos activos • {empresas.length} puntos de origen
-                  </p>
-                  <div className="flex justify-center space-x-2">
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                      <Navigation className="mr-2 h-4 w-4" />
-                      Ver en Google Maps
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Actualizar
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Simulación de marcadores */}
-                <div className="absolute top-4 left-4 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <div className="absolute top-12 right-8 w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                <div className="absolute bottom-8 left-12 w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-                <div className="absolute bottom-4 right-4 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-              </div>
-
-              {/* Leyenda */}
-              <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">Completado</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="text-sm">En Progreso</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                  <span className="text-sm">Pendiente</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-sm">Retrasado</span>
-                </div>
+    <Card className="col-span-3">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center">
+          <MapPin className="mr-2 h-5 w-5" />
+          Mapa de Rutas
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="relative">
+          {!mapsLoaded ? (
+            <div className="w-full h-[600px] bg-gray-100 rounded-lg flex items-center justify-center">
+              <div className="text-center">
+                <Loader2 className="mx-auto h-8 w-8 mb-2 animate-spin" />
+                <p>Cargando mapa...</p>
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {repartos.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <MapPin className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-                  <p>No hay repartos activos</p>
-                  <p className="text-sm">Los repartos aparecerán aquí cuando estén en progreso</p>
-                </div>
-              ) : (
-                repartos.map((reparto) => {
-                  const progreso = calcularProgreso(reparto.paradas_reparto || [])
-                  return (
-                    <div
-                      key={reparto.id}
-                      className={`p-4 border rounded-lg transition-all cursor-pointer ${
-                        repartoSeleccionado === reparto.id ? "border-blue-500 bg-blue-50" : "hover:border-gray-300"
-                      }`}
-                      onClick={() => setRepartoSeleccionado(repartoSeleccionado === reparto.id ? null : reparto.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex-shrink-0">
-                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                              <MapPin className="h-6 w-6 text-blue-600" />
-                            </div>
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-gray-900">
-                              Reparto del {new Date(reparto.fecha).toLocaleDateString("es-ES")}
-                            </h4>
-                            <p className="text-sm text-gray-600">
-                              {reparto.repartidores?.nombre} {reparto.repartidores?.apellido} •{" "}
-                              {reparto.paradas_reparto?.length || 0} paradas
-                            </p>
-                            <div className="flex items-center space-x-2 mt-1">
-                              {getEstadoBadge(reparto.estado)}
-                              <span className="text-xs text-gray-500">{progreso}% completado</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          <Button size="sm" variant="outline" onClick={() => abrirEnGoogleMaps(reparto)}>
-                            <Navigation className="mr-2 h-4 w-4" />
-                            Navegar
-                          </Button>
-                          <Button size="sm" asChild>
-                            <Link href={`/repartos/${reparto.id}`}>
-                              <Eye className="mr-2 h-4 w-4" />
-                              Ver
-                            </Link>
-                          </Button>
-                        </div>
-                      </div>
-
-                      {repartoSeleccionado === reparto.id && (
-                        <div className="mt-4 pt-4 border-t">
-                          <h5 className="font-medium text-gray-900 mb-2">Paradas del reparto:</h5>
-                          <div className="space-y-2">
-                            {reparto.paradas_reparto
-                              ?.sort((a: any, b: any) => a.orden - b.orden)
-                              .slice(0, 5)
-                              .map((parada: any) => (
-                                <div key={parada.id} className="flex items-center justify-between text-sm">
-                                  <div className="flex items-center space-x-2">
-                                    <div
-                                      className={`w-2 h-2 rounded-full ${
-                                        parada.completada ? "bg-green-500" : "bg-gray-300"
-                                      }`}
-                                    />
-                                    <span>
-                                      {parada.envios.clientes.nombre} - {parada.envios.direccion_destino}
-                                    </span>
-                                  </div>
-                                  <Badge variant={parada.completada ? "default" : "secondary"} className="text-xs">
-                                    {parada.completada ? "✓" : parada.orden}
-                                  </Badge>
-                                </div>
-                              ))}
-                            {(reparto.paradas_reparto?.length || 0) > 5 && (
-                              <div className="text-xs text-gray-500">
-                                +{(reparto.paradas_reparto?.length || 0) - 5} paradas más
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })
-              )}
-            </div>
+            <div ref={mapRef} className="w-full h-[600px] rounded-lg border" />
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

@@ -33,17 +33,26 @@ export function SelectorUbicacion({ onUbicacionSeleccionada, direccionInicial = 
   const markerRef = useRef<any>(null)
   const geocoderRef = useRef<any>(null)
 
-  // Cargar Google Maps API
   useEffect(() => {
     if (typeof window !== "undefined" && !window.google) {
-      const script = document.createElement("script")
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places,marker&map_ids=DEMO_MAP_ID`
-      script.async = true
-      script.defer = true
-      script.onload = () => {
-        setMapsLoaded(true)
-      }
-      document.head.appendChild(script)
+      // Fetch the script URL from the server
+      fetch("/api/maps-config")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.scriptUrl) {
+            const script = document.createElement("script")
+            script.src = data.scriptUrl
+            script.async = true
+            script.defer = true
+            script.onload = () => {
+              setMapsLoaded(true)
+            }
+            document.head.appendChild(script)
+          }
+        })
+        .catch((error) => {
+          console.error("Error loading Google Maps:", error)
+        })
     } else if (window.google) {
       setMapsLoaded(true)
     }

@@ -51,7 +51,7 @@ export default async function DashboardLayout({
       .from("configuracion_empresa")
       .select("*")
       .eq("id", repartidor.empresa_id)
-      .single()
+      .maybeSingle()
 
     configuracionEmpresa = configData
   }
